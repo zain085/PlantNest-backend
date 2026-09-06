@@ -1,119 +1,156 @@
-import bcrypt from "bcryptjs";
-import asyncHandler from "express-async-handler";
-import User from "../models/user.model.mjs";
-import generateToken from "../utils/generateToken.mjs";
-import uploadFileOnCloudinary from "../utils/cloudinary.mjs";
+import bcrypt from "bcryptjs"
+import asyncHandler from "express-async-handler"
+import User from "../models/user.model.mjs"
+import generateToken from "../utils/generateToken.mjs"
+import uploadFileOnCloudinary from "../utils/cloudinary.mjs"
 
 const register = asyncHandler(async (request, response) => {
-  const { username, fullName, email, password, contactNumber, age, city } = request.body;
+    const {
+        username,
+        fullName,
+        email,
+        password,
+        contactNumber,
+        age,
+        city,
+    } = request.body
 
-  if (!username || !email || !password || !contactNumber) {
-    response.status(400);
-    throw new Error("Input all required fields.");
-  }
+    if (!username || !email || !password || !contactNumber) {
+        response.status(400)
+        throw new Error("Input all required fields.")
+    }
 
-  const userExists = await User.findOne({ $or: [{ email }, { username }] });
-  if (userExists) {
-    response.status(401);
-    throw new Error("Username or email already registered.");
-  }
+    const userExists = await User.findOne({
+        $or: [{ email }, { username }],
+    })
 
-  const hashPassword = await bcrypt.hash(password, 10);
+    if (userExists) {
+        response.status(401)
+        throw new Error("Username or email already registered.")
+    }
 
-  let avatarUrl = null;
-  if (request.file) {
-    const uploadedOnCloudinary = await uploadFileOnCloudinary(request.file.path);
-    avatarUrl = uploadedOnCloudinary?.url || null;
-  }
+    const hashPassword = await bcrypt.hash(password, 10)
 
-  const user = await User.create({
-    username,
-    fullName,
-    email,
-    password: hashPassword,
-    contactNumber,
-    age,
-    city,
-    avatar: avatarUrl,
-  });
+    let avatarUrl = null
 
-  const token = generateToken(user._id);
-  response.cookie("token", token, {
-    maxAge: 6 * 60 * 60 * 1000,
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
+    if (request.file) {
+        const uploadedOnCloudinary = await uploadFileOnCloudinary(
+            request.file.buffer
+        )
 
-  const safeUser = user.toObject();
-  delete safeUser.password;
+        avatarUrl = uploadedOnCloudinary?.secure_url || null
+    }
 
-  response.status(201).json({ message: `Account created.`, success: true, user: safeUser, token });
-});
+    const user = await User.create({
+        username,
+        fullName,
+        email,
+        password: hashPassword,
+        contactNumber,
+        age,
+        city,
+        avatar: avatarUrl,
+    })
+
+    const token = generateToken(user._id)
+
+    response.cookie("token", token, {
+        maxAge: 6 * 60 * 60 * 1000,
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    })
+
+    const safeUser = user.toObject()
+    delete safeUser.password
+
+    response.status(201).json({
+        message: "Account created.",
+        success: true,
+        user: safeUser,
+        token,
+    })
+})
 
 const login = asyncHandler(async (request, response) => {
-  const { email, password } = request.body;
+    const { email, password } = request.body
 
-  if (!email || !password) {
-    return response.status(400).json({
-      message: "Input all fields",
-      success: false,
-    });
-  }
+    if (!email || !password) {
+        return response.status(400).json({
+            message: "Input all fields",
+            success: false,
+        })
+    }
 
-  const user = await User.findOne({ $or: [{ email }, { username: email }] });
-  if (!user) {
-    return response.status(401).json({
-      message: "User not registered.",
-      success: false,
-    });
-  }
+    const user = await User.findOne({
+        $or: [{ email }, { username: email }],
+    })
 
-  const matchPassword = await bcrypt.compare(password, user.password);
+    if (!user) {
+        return response.status(401).json({
+            message: "User not registered.",
+            success: false,
+        })
+    }
 
-  if (!matchPassword) {
-    return response.status(401).json({
-      message: "Invalid password",
-      success: false,
-    });
-  }
+    const matchPassword = await bcrypt.compare(
+        password,
+        user.password
+    )
 
-  const token = generateToken(user._id);
+    if (!matchPassword) {
+        return response.status(401).json({
+            message: "Invalid password",
+            success: false,
+        })
+    }
 
-  response.cookie("token", token, {
-    maxAge: 6 * 60 * 60 * 1000,
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
+    const token = generateToken(user._id)
 
-  const safeUser = user.toObject();
-  delete safeUser.password;
+    response.cookie("token", token, {
+        maxAge: 6 * 60 * 60 * 1000,
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    })
 
-  response.status(200).json({
-    message: "Login successful.",
-    success: true,
-    user: safeUser,
-    token,
-  });
-});
+    const safeUser = user.toObject()
+    delete safeUser.password
+
+    response.status(200).json({
+        message: "Login successful.",
+        success: true,
+        user: safeUser,
+        token,
+    })
+})
 
 const logout = asyncHandler(async (request, response) => {
-  response.clearCookie("token", {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
+    response.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+    })
 
-  response.status(200).json({
-    message: "Logged out successfully.",
-    success: true,
-  });
-});
+    response.status(200).json({
+        message: "Logged out successfully.",
+        success: true,
+    })
+})
 
 const profile = asyncHandler(async (request, response) => {
-  const user = await User.findById(request.user._id).select("-password");
-  response.status(200).json({ user, success: true });
-});
+    const user = await User.findById(request.user._id)
+        .select("-password")
 
-export { register, login, profile, logout };
+    response.status(200).json({
+        user,
+        success: true,
+    })
+})
+
+export {
+    register,
+    login,
+    profile,
+    logout,
+}

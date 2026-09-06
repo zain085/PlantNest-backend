@@ -1,26 +1,45 @@
 import { v2 as cloudinary } from "cloudinary"
-import fs from "node:fs"
+import { PassThrough } from "node:stream"
 
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
+    api_secret: process.env.CLOUDINARY_API_SECRET,
 })
 
-const uploadFileOnCloudinary = async(local_path) => {
-    try{
-        if(!local_path) return null
+const uploadFileOnCloudinary = (buffer, options = {}) => {
+    return new Promise((resolve, reject) => {
+        if (!buffer) {
+            return resolve(null)
+        }
 
-        const response = await cloudinary.uploader.upload(
-            local_path, { resource_type: "image" }
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                resource_type: "image",
+                ...options,
+            },
+            (error, result) => {
+                if (error) {
+                    console.error(
+                        "Cloudinary upload failed:",
+                        error.message
+                    )
+                    return reject(error)
+                }
+
+                console.log(
+                    `File uploaded to Cloudinary: ${result.secure_url}`
+                )
+
+                resolve(result)
+            }
         )
-    
-        console.log(`File has been uploaded on cloudinary. URL: ${response.url}`)
-        fs.unlinkSync(local_path)
-        return response
-    }catch(err){
-        console.log(err.message);
-    }
+
+        const readableStream = new PassThrough()
+
+        readableStream.end(buffer)
+        readableStream.pipe(uploadStream)
+    })
 }
 
 export default uploadFileOnCloudinary
