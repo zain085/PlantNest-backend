@@ -15,13 +15,17 @@ import reviewRouter from "./routes/review.route.mjs";
 import feedbackRouter from "./routes/feedback.route.mjs";
 import userRouter from "./routes/user.route.mjs";
 
+connectDB();
+
 const app = express();
 
 app.use(
-    cors({
-        origin: process.env.CLIENT_URL || "http://localhost:5173",
-        credentials: true,
-    })
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
 );
 
 app.use(express.json());
@@ -38,14 +42,20 @@ app.use("/api/v1/review", reviewRouter);
 app.use("/api/v1/feedback", feedbackRouter);
 app.use("/api/v1/user", userRouter);
 
-app.get("/", (request, response) => {
-    response.json({
-        message: "PlantNest API is running.",
-    });
+app.get("/api/v1/health", (request, response) => {
+  response.json({
+    message: "PlantNest API is running.",
+  });
 });
 
 app.use(errorHandler);
 
-await connectDB();
+
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 export default app;
